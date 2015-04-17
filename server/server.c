@@ -13,8 +13,12 @@
 #include <sys/socket.h>  /* define socket */
 #include <netinet/in.h>  /* define internet socket */
 #include <netdb.h>       /* define internet socket */
+#include <pthread.h>     /* POSIX threads */
+#include <stdbool.h>
 
-#define SERVER_PORT 9999
+#define SERVER_PORT 10000
+
+void* clientHandler(void* arg);
 
 int main(int argc, const char * argv[]) {
     
@@ -57,19 +61,34 @@ int main(int argc, const char * argv[]) {
     printf("SERVER is listening for clients to establish a connection\n");
     
     /* Wait for connection request */
-    if( (ns = accept( sd, (struct sockaddr*)&client_addr, &client_len ) ) == -1 )
+    while(true)
     {
-        perror( "server: accept failed" );
-        exit( 1 );
+        if( (ns = accept( sd, (struct sockaddr*)&client_addr, &client_len ) ) == -1 )
+        {
+            perror( "server: accept failed" );
+            exit( 1 );
+        }
+        
+        printf("Client connection accepted!\n");
+
+        pthread_t tid;
+        pthread_create(&tid, NULL, clientHandler, (void*) &ns);
     }
-    
-    printf("Client connection accepted!\n");
-    
-    while( (k = read(ns, buf, sizeof(buf))) != 0)
-    {    printf("SERVER RECEIVED: %s\n", buf);
-        write(ns, buf, k);
-    }
-    
     
     return 0;
+}
+
+void* clientHandler(void* arg)
+{
+    int* ns = (int*)arg;
+    char buf[512];
+    long k;
+    
+    while( (k = read(*ns, buf, sizeof(buf))) != 0)
+    {
+        printf("SERVER RECEIVED: %s\n", buf);
+        write(*ns, buf, k);
+    }
+    
+    return NULL;
 }
