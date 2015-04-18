@@ -13,7 +13,15 @@
 /*   TO RUN:     client  server-machine-name                            */ 
 /*                                                                      */ 
 /************************************************************************/ 
- 
+
+//
+//  client.c
+//  Client code
+//
+//  Joel Bierbaum - 4/17/2015
+//  CS 3800 Assignment 3
+//
+
 #include <stdio.h> 
 #include <sys/types.h> 
 #include <sys/socket.h>  /* define socket */ 
@@ -22,56 +30,127 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
+#include <pthread.h>
  
-#define SERVER_PORT 9999     /* define a server port number */
- 
+#define SERVER_PORT 10000     /* define a server port number */
+
+int socketNumber = 0; // file descriptor number assigned to socket upon connection
+char clientName[200]; // client's chosen name --- IS THIS BAD, SHOULD IT JUST BE AN ARRAY?
+pthread_t threadID;
+
+/* --------------------------- FUNCTION PROTOTYPES --------------------------- */
+
+void *readThread( void *ptr );
+
+
+/* --------------------------- MAIN PROGRAM --------------------------- */
+
 int main( int argc, char* argv[] ) 
-{ 
-    int sd; 
+{
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = SERVER_PORT;
-    char buf[512]; 
-    struct hostent *hp; 
- 
+    char buf[512];
+    struct hostent *hostInfo;
+    bool bServerAccepted = false;
+    bool bClientExit = false;
+
+    /* VALIDATE INITIAL ARGUMENTS -- EXECUTABLE AND HOSTNAME */
     if( argc != 2 ) 
     { 
-        printf( "Usage: %s hostname\n", argv[0] );
-        exit(1); 
+        //printf( "Usage: %s hostname\n", argv[0] ); // Not sure what this even means
+        printf("CLIENT ERROR: Invalid number of arguments!\n\n");
+        exit(1);
     }
- 
-    /* get the host */ 
-    if( ( hp = gethostbyname( argv[1] ) ) == NULL ) 
+
+    /* GET HOST INFORMATION */
+    if( ( hostInfo = gethostbyname( argv[1] ) ) == NULL )
     {
-        printf( "%s: %s unknown host\n", argv[0], argv[1] );
+        //printf( "%s: %s unknown host\n", argv[0], argv[1] );
+        printf("CLIENT ERROR: %s is an unknown host!\n\n",argv[1]);
+        exit( 1 ); 
+    }
+    //void *memcpy(void *str1, const void *str2, size_t n) copies n characters from memory area str2 to memory area str1.
+    //memcpy( hostInfo->h_addr_list[0], (char*)&server_addr.sin_addr, hostInfo->h_length );
+    bcopy(hostInfo->h_addr_list[0], (char*)&server_addr.sin_addr, hostInfo->h_length);
+ 
+    /* CREATE CLIENT SOCKET*/
+    if( ( socketNumber = socket( AF_INET, SOCK_STREAM, 0 ) ) == -1 )
+    {
+        perror( "CLIENT ERROR: SOCKET CREATION FAILED!\n\n" );
         exit( 1 ); 
     } 
-    memcpy( hp->h_addr_list[0], (char*)&server_addr.sin_addr, hp->h_length );
- 
-    /* create a socket */ 
-    if( ( sd = socket( AF_INET, SOCK_STREAM, 0 ) ) == -1 ) 
-    {
-        perror( "client: socket failed" );
-        exit( 1 ); 
-    } 
- 
-    /* connect a socket */ 
-    if( connect( sd, (struct sockaddr*)&server_addr, sizeof(server_addr) ) == -1 )
+
+    /* CONNECT TO SERVER SOCKET */
+    if( connect( socketNumber, (struct sockaddr*)&server_addr, sizeof(server_addr) ) == -1 )
     { 
-        perror( "client: connect FAILED:" );
+        perror( "CLIENT ERROR: connect() FAILED!\n\n" );
         exit( 1 ); 
     } 
  
-    printf("connect() successful! will send a message to server\n"); 
-    printf("Input a string:\n" ); 
- 
-    while( gets(buf) != NULL)
+    printf("CONNECTED TO CHATROOM!\n\n");
+    printf("Input your nickname:  ");
+    
+    // handle ctrl+c here
+
+    /* SEND NICKNAME TO THE SERVER */
+    while( !bServerAccepted && gets(buf) != NULL ) // MUST HAVE IN THIS ORDER, ELSE IT HANGS ON gets()
     {
-        write(sd, buf, sizeof(buf));
-        read(sd, buf, sizeof(buf));
+        strcpy(clientName, buf);
+        write(socketNumber, buf, sizeof(buf));
+        read(socketNumber, buf, sizeof(buf));
         printf("SERVER ECHOED: %s\n", buf);
+        
+        if(strcmp(buf,"WHATEVER MESSAGE THE SERVER SENDS WHEN THE LIST IS FULL\n")==0) // MAY NOT NEED THIS...DEPENDS ON SERVER
+        {
+            close(socketNumber);
+            exit(0);
+        }
+        bServerAccepted = true;
     }
- 
-    close(sd); 
-    return(0); 
-} 
+
+    printf( "Type /exit OR /quit OR /part to leave the room!\n\n");
+
+    /* CREATE THREAD FOR READING FROM SERVER */
+    if (pthread_create(&threadID, NULL, readThread, &socketNumber)) // DOES THE THREAD ID EVER HAVE TO BE USED FOR ANYTHING???
+    {
+        perror("CLIENT ERROR: Read thread could not be created.\n");
+        exit(1);
+    }
+
+    /* CONTINUOUSLY READ USER INPUT AND SEND MESSAGE TO SERVER, UNTIL SERVER OR USER EXITS */
+    while( !bClientExit && gets(buf) != NULL )
+    {
+        if(strcmp(buf,"/exit")==0 || strcmp(buf,"/quit")==0 || strcmp(buf,"/part")==0)
+        {
+            bClientExit = true; // sets the exit flag
+        }
+
+        write(socketNumber, buf, sizeof(buf)); // write message to server
+    }
+
+    close(socketNumber); // Outta here
+    return(0);
+}
+
+/* --------------------------- FUNCTION DEFINITIONS --------------------------- */
+
+void *readThread( void *sockNum )
+{
+    int *socket = (int*)sockNum; // DON'T KNOW IF THIS WILL WORK OR NOT, MIGHT HAVE TO BE int *socket = (int*)sockNum
+    char receivedMessage[512];
+    while(read(*socket, receivedMessage, sizeof(receivedMessage)) >= 0) // WHEN I HAD THIS !=0 IT WOULD PRINT BLANK LINES, CONSTANTLY >=0 FIXED THIS...WHICH MEANS THAT read() IS SPITTING ERRORS WHEN READING NOTHING...NO PROBLEM
+    {
+        // IF MESSAGED RECEIVED IS THE SERVER'S SIGNAL TO KILL THE CLIENT
+        if(strcmp(receivedMessage,"QUIT")==0)
+        {
+            close(socketNumber); // CLOSE THE SOCKET AND EXIT CLIENT APPLICATION
+            exit(EXIT_SUCCESS);
+        }
+
+        printf("%s\n",receivedMessage); // ELSE PRINT MESSAGE SENT BY SERVER
+    }
+
+    return NULL; // to make the compiler happy
+}
