@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include <pthread.h>
  
-#define SERVER_PORT 10000     /* define a server port number */
+#define SERVER_PORT 9999     /* define a server port number */
 
 int socketNumber = 0; // file descriptor number assigned to socket upon connection
 char clientName[200]; // client's chosen name --- IS THIS BAD, SHOULD IT JUST BE AN ARRAY?
@@ -100,7 +100,8 @@ int main( int argc, char* argv[] )
         strcpy(clientName, buf);
         write(socketNumber, buf, sizeof(buf));
         read(socketNumber, buf, sizeof(buf));
-        printf("SERVER ECHOED: %s\n", buf);
+        //printf("SERVER ECHOED: %s\n", buf);
+        printf("%s", buf);
         
         if(strcmp(buf,"WHATEVER MESSAGE THE SERVER SENDS WHEN THE LIST IS FULL\n")==0) // MAY NOT NEED THIS...DEPENDS ON SERVER
         {
@@ -110,7 +111,7 @@ int main( int argc, char* argv[] )
         bServerAccepted = true;
     }
 
-    printf( "Type /exit OR /quit OR /part to leave the room!\n\n");
+    printf( "\nType /exit OR /quit OR /part to leave the room!\n\n");
 
     /* CREATE THREAD FOR READING FROM SERVER */
     if (pthread_create(&threadID, NULL, readThread, &socketNumber)) // DOES THE THREAD ID EVER HAVE TO BE USED FOR ANYTHING???
@@ -150,6 +151,7 @@ void *readThread( void *sockNum )
         }
 
         printf("%s\n",receivedMessage); // ELSE PRINT MESSAGE SENT BY SERVER
+        bzero(receivedMessage, sizeof(receivedMessage));
     }
 
     return NULL; // to make the compiler happy
