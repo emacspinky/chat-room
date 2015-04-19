@@ -18,6 +18,7 @@
 #include <netinet/in.h>  /* define internet socket */
 #include <netdb.h>       /* define internet socket */
 #include <pthread.h>     /* POSIX threads */
+#include <signal.h>
 #include <string.h>
 #include <stdbool.h>
 
@@ -33,6 +34,10 @@ pthread_mutex_t array_lock;
 void* clientHandler(void* arg);
 int findEmptySlot(int clients[MAX_CLIENTS]);
 void emitMessage(char message[MAX_MESSAGE], size_t bytes, int sender_sock, int clients[MAX_CLIENTS]);
+void emitMessageAll(char message[MAX_MESSAGE], size_t bytes, int clients[MAX_CLIENTS]);
+void closeSockets(int clients[MAX_CLIENTS]);
+void closeServer();
+void* delayHandler(void* arg);
 
 int main(int argc, const char * argv[]) {
     
@@ -48,15 +53,6 @@ int main(int argc, const char * argv[]) {
     struct sockaddr_in client_addr = { AF_INET };
     unsigned int client_len = sizeof(client_addr);
     
-    //Client clients[MAX_CLIENTS];
-    
-    /* Initialize clients array */
-//    for(int i = 0; i < MAX_CLIENTS; i++)
-//    {
-//        Client client;
-//        client.empty = true;
-//        clients[i] = client;
-//    }
     
     /* Initialize clients array */
     for(int i = 0; i < MAX_CLIENTS; i++)
@@ -86,6 +82,9 @@ int main(int argc, const char * argv[]) {
     }
     
     printf("SERVER is listening for clients to establish a connection\n");
+    
+    /* Set handler for closing server */
+    signal(SIGINT, closeServer);
     
     /* Wait for client connection request */
     while(true)
@@ -123,30 +122,15 @@ int main(int argc, const char * argv[]) {
 void* clientHandler(void* arg)
 {
     int clt_sock = *(int*)arg;
-    char buf[512]; bzero(buf, sizeof(buf));
+    char buf[MAX_MESSAGE]; bzero(buf, sizeof(buf));
     long bytes_read;
-    char client_name[512];
+    char client_name[MAX_MESSAGE]; bzero(client_name, sizeof(buf));
     
     /* Insert new client into clients array */
     int idx = findEmptySlot(clients);
     pthread_mutex_lock(&array_lock);
     clients[idx] = clt_sock;
     pthread_mutex_unlock(&array_lock);
-    
-    
-    
-    
-    // Get client name
-//    while(!done && (bytes_read = read(clt_sock, buf, sizeof(buf))) != 0)
-//    {
-//        strcpy(client_name, buf);
-//        strcat(buf, " connected!\n");
-//        
-//        write(clt_sock, buf, bytes_read);
-//        bzero(buf, sizeof(buf));
-//        
-//        done = true;
-//    }
     
     /* Read client name */
     bytes_read = read(clt_sock, buf, sizeof(buf));
@@ -160,8 +144,8 @@ void* clientHandler(void* arg)
     for(int i = 0; i < MAX_CLIENTS; i++)
     {
         if(clients[i] == -1) continue;
-        
-        write(clients[i], buf, bytes_read + sizeof(greeting) - 1); // NOT SURE IF -1 NEEDED
+    
+        write(clients[i], buf, strlen(buf));
     }
     pthread_mutex_unlock(&array_lock);
     
@@ -170,6 +154,11 @@ void* clientHandler(void* arg)
     /* Read messages from the client and emit to all other connect clients */
     while( (bytes_read = read(clt_sock, buf, sizeof(buf))) != 0)
     {
+        if(strcmp(buf,"/exit")==0 || strcmp(buf,"/quit")==0 || strcmp(buf,"/part")==0)
+        {
+            break;
+        }
+        
         printf("%s: %s\n", client_name, buf);
         
         char message[MAX_MESSAGE]; bzero(message, sizeof(message));
@@ -181,7 +170,24 @@ void* clientHandler(void* arg)
         bzero(buf, sizeof(buf));
     }
     
-    printf("Leaving client handler thread\n");
+    /* Inform users that a user is exiting */
+    char exit_message[MAX_MESSAGE]; bzero(exit_message, sizeof(exit_message));
+    strcpy(exit_message, client_name);
+    strcat(exit_message, " disconnected from the server");
+    printf("%s\n", exit_message);
+    emitMessage(exit_message, strlen(exit_message), clt_sock, clients);
+    
+    
+    /* Close client socket and update client state variables */
+    close(clt_sock);
+    
+    pthread_mutex_lock(&array_lock);
+    clients[idx] = -1;
+    pthread_mutex_unlock(&array_lock);
+    
+    pthread_mutex_lock(&count_lock);
+    client_count--;
+    pthread_mutex_unlock(&count_lock);
     
     return NULL;
 }
@@ -223,4 +229,50 @@ void emitMessage(char message[MAX_MESSAGE], size_t bytes, int sender_sock, int c
     }
     pthread_mutex_unlock(&array_lock);
 }
+
+void emitMessageAll(char message[MAX_MESSAGE], size_t bytes, int clients[MAX_CLIENTS])
+{
+    pthread_mutex_lock(&array_lock);
+    for(int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if(clients[i] == -1) continue;
+        
+        write(clients[i], message, bytes);
+    }
+    pthread_mutex_unlock(&array_lock);
+}
+
+// Closes all currently open socket connections
+// THREAD SAFE
+void closeSockets(int clients[MAX_CLIENTS])
+{
+    pthread_mutex_lock(&array_lock);
+    for(int i = 0; i < MAX_CLIENTS; i++)
+    {
+        if(clients[i] == -1) continue;
+        
+        close(clients[i]);
+    }
+    pthread_mutex_unlock(&array_lock);
+}
+
+void closeServer()
+{
+    pthread_t tid;
+    pthread_create(&tid, NULL, delayHandler, NULL);
+}
+
+void* delayHandler(void* arg)
+{
+    char message[] = "Server will close in approximately 10 seconds. Please disconnect now.";
+    printf("\r%s\n", message);
+    emitMessageAll(message, strlen(message), clients);
+    sleep(10);
+    closeSockets(clients);
+    
+    exit(0);
+    return NULL;
+}
+
+
 
