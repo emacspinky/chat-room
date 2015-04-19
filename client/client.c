@@ -32,6 +32,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <signal.h>
  
 #define SERVER_PORT 9999     /* define a server port number */
 
@@ -42,6 +43,7 @@ pthread_t threadID;
 /* --------------------------- FUNCTION PROTOTYPES --------------------------- */
 
 void *readThread( void *ptr );
+void exitHandler(int sig);
 
 
 /* --------------------------- MAIN PROGRAM --------------------------- */
@@ -55,6 +57,8 @@ int main( int argc, char* argv[] )
     struct hostent *hostInfo;
     bool bServerAccepted = false;
     bool bClientExit = false;
+
+    signal(SIGINT,exitHandler);
 
     /* VALIDATE INITIAL ARGUMENTS -- EXECUTABLE AND HOSTNAME */
     if( argc != 2 ) 
@@ -71,8 +75,6 @@ int main( int argc, char* argv[] )
         printf("CLIENT ERROR: %s is an unknown host!\n\n",argv[1]);
         exit( 1 ); 
     }
-    //void *memcpy(void *str1, const void *str2, size_t n) copies n characters from memory area str2 to memory area str1.
-    //memcpy( hostInfo->h_addr_list[0], (char*)&server_addr.sin_addr, hostInfo->h_length );
     bcopy(hostInfo->h_addr_list[0], (char*)&server_addr.sin_addr, hostInfo->h_length);
  
     /* CREATE CLIENT SOCKET*/
@@ -90,21 +92,19 @@ int main( int argc, char* argv[] )
     } 
  
     printf("CONNECTED TO CHATROOM!\n\n");
-    printf("Input your nickname:  ");
-    
-    // handle ctrl+c here
+    printf("Input your username:  ");
 
-    /* SEND NICKNAME TO THE SERVER */
+    /* SEND CLIENT USERNAME TO THE SERVER */
     while( !bServerAccepted && gets(buf) != NULL ) // MUST HAVE IN THIS ORDER, ELSE IT HANGS ON gets()
     {
         strcpy(clientName, buf);
         write(socketNumber, buf, sizeof(buf));
         read(socketNumber, buf, sizeof(buf));
-        //printf("SERVER ECHOED: %s\n", buf);
         printf("%s", buf);
         
-        if(strcmp(buf,"WHATEVER MESSAGE THE SERVER SENDS WHEN THE LIST IS FULL\n")==0) // MAY NOT NEED THIS...DEPENDS ON SERVER
+        if(strcmp(buf,"/server_full")==0) // MAY NOT NEED THIS...DEPENDS ON SERVER
         {
+            printf("The server is at its maximum client level - try again later!");
             close(socketNumber);
             exit(0);
         }
@@ -137,6 +137,13 @@ int main( int argc, char* argv[] )
 
 /* --------------------------- FUNCTION DEFINITIONS --------------------------- */
 
+// IF CLIENT ENTERS CTRL+C, THEY ARE NOTIFIED THAT THEY MUST ENTER A VALID EXIT COMMAND
+// IN ORDER TO CLEANLY EXIT THE PROGRAM.
+void exitHandler(int sig)
+{
+    printf("\rPlease type /exit, /quit or /part to exit the chatroom.\n");
+}
+
 void *readThread( void *sockNum )
 {
     int *socket = (int*)sockNum; // DON'T KNOW IF THIS WILL WORK OR NOT, MIGHT HAVE TO BE int *socket = (int*)sockNum
@@ -144,8 +151,9 @@ void *readThread( void *sockNum )
     while(read(*socket, receivedMessage, sizeof(receivedMessage)) >= 0) // WHEN I HAD THIS !=0 IT WOULD PRINT BLANK LINES, CONSTANTLY >=0 FIXED THIS...WHICH MEANS THAT read() IS SPITTING ERRORS WHEN READING NOTHING...NO PROBLEM
     {
         // IF MESSAGED RECEIVED IS THE SERVER'S SIGNAL TO KILL THE CLIENT
-        if(strcmp(receivedMessage,"QUIT")==0)
+        if(strcmp(receivedMessage,"/server_closing")==0)
         {
+            printf("The server is closing - attempting to gracefully close client");
             close(socketNumber); // CLOSE THE SOCKET AND EXIT CLIENT APPLICATION
             exit(EXIT_SUCCESS);
         }
