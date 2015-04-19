@@ -39,12 +39,13 @@
 int socketNumber = 0; // file descriptor number assigned to socket upon connection
 char clientName[200]; // client's chosen name --- IS THIS BAD, SHOULD IT JUST BE AN ARRAY?
 pthread_t threadID;
+bool exitFlag = false;
 
 /* --------------------------- FUNCTION PROTOTYPES --------------------------- */
 
 void *readThread( void *ptr );
 void exitHandler(int sig);
-
+void exitChatRoom();
 
 /* --------------------------- MAIN PROGRAM --------------------------- */
 
@@ -77,7 +78,7 @@ int main( int argc, char* argv[] )
     }
     bcopy(hostInfo->h_addr_list[0], (char*)&server_addr.sin_addr, hostInfo->h_length);
  
-    /* CREATE CLIENT SOCKET*/
+    /* CREATE CLIENT SOCKET */
     if( ( socketNumber = socket( AF_INET, SOCK_STREAM, 0 ) ) == -1 )
     {
         perror( "CLIENT ERROR: SOCKET CREATION FAILED!\n\n" );
@@ -91,7 +92,7 @@ int main( int argc, char* argv[] )
         exit( 1 ); 
     } 
  
-    printf("CONNECTED TO CHATROOM!\n\n");
+    printf("CONNECTED TO CHATROOM!\n");
     printf("Input your username:  ");
 
     /* SEND CLIENT USERNAME TO THE SERVER */
@@ -100,18 +101,20 @@ int main( int argc, char* argv[] )
         strcpy(clientName, buf);
         write(socketNumber, buf, sizeof(buf));
         read(socketNumber, buf, sizeof(buf));
-        printf("%s", buf);
-        
         if(strcmp(buf,"/server_full")==0) // MAY NOT NEED THIS...DEPENDS ON SERVER
         {
             printf("The server is at its maximum client level - try again later!\n");
             close(socketNumber);
             exit(0);
         }
+        else
+            printf("%s", buf);
+        
         bServerAccepted = true;
     }
 
-    printf( "\nType /exit OR /quit OR /part to leave the room!\n\n");
+    printf( "\nType /exit OR /quit OR /part to leave the room!\n");
+    printf( "BEGIN CHATTING!\n\n");
 
     /* CREATE THREAD FOR READING FROM SERVER */
     if (pthread_create(&threadID, NULL, readThread, &socketNumber)) // DOES THE THREAD ID EVER HAVE TO BE USED FOR ANYTHING???
@@ -163,4 +166,9 @@ void *readThread( void *sockNum )
     }
 
     return NULL; // to make the compiler happy
+}
+
+void exitChatRoom()
+{
+    
 }
