@@ -148,11 +148,13 @@ void *readThread( void *sockNum )
 {
     int *socket = (int*)sockNum; // DON'T KNOW IF THIS WILL WORK OR NOT, MIGHT HAVE TO BE int *socket = (int*)sockNum
     char receivedMessage[512];
-    while(read(*socket, receivedMessage, sizeof(receivedMessage)) >= 0) // WHEN I HAD THIS !=0 IT WOULD PRINT BLANK LINES, CONSTANTLY >=0 FIXED THIS...WHICH MEANS THAT read() IS SPITTING ERRORS WHEN READING NOTHING...NO PROBLEM
+    while(read(*socket, receivedMessage, sizeof(receivedMessage)) > 0) // WHEN I HAD THIS !=0 IT WOULD PRINT BLANK LINES, CONSTANTLY >=0 FIXED THIS...WHICH MEANS THAT read() IS SPITTING ERRORS WHEN READING NOTHING...NO PROBLEM
     {
         // IF MESSAGED RECEIVED IS THE SERVER'S SIGNAL TO KILL THE CLIENT
-        if(strcmp(receivedMessage,"/server_closing")==0)
+        if(strstr(receivedMessage,"/server_closing") != NULL)
         {
+            char exitArray[] = "/exit";
+            write(socketNumber, exitArray, sizeof(exitArray));
             printf("The server is closing - attempting to gracefully close client");
             close(socketNumber); // CLOSE THE SOCKET AND EXIT CLIENT APPLICATION
             exit(EXIT_SUCCESS);
