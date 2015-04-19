@@ -104,7 +104,7 @@ int main( int argc, char* argv[] )
         
         if(strcmp(buf,"/server_full")==0) // MAY NOT NEED THIS...DEPENDS ON SERVER
         {
-            printf("The server is at its maximum client level - try again later!");
+            printf("The server is at its maximum client level - try again later!\n");
             close(socketNumber);
             exit(0);
         }
@@ -141,7 +141,7 @@ int main( int argc, char* argv[] )
 // IN ORDER TO CLEANLY EXIT THE PROGRAM.
 void exitHandler(int sig)
 {
-    printf("\rPlease type /exit, /quit or /part to exit the chatroom.\n");
+    printf("\rType /exit OR /quit OR /part to leave the room!\n");
 }
 
 void *readThread( void *sockNum )
@@ -153,9 +153,7 @@ void *readThread( void *sockNum )
         // IF MESSAGED RECEIVED IS THE SERVER'S SIGNAL TO KILL THE CLIENT
         if(strstr(receivedMessage,"/server_closing") != NULL)
         {
-            char exitArray[] = "/exit";
-            write(socketNumber, exitArray, sizeof(exitArray));
-            printf("The server is closing - attempting to gracefully close client");
+            printf("The server is closing - YOU WILL BE DISCONNECTED!\n");
             close(socketNumber); // CLOSE THE SOCKET AND EXIT CLIENT APPLICATION
             exit(EXIT_SUCCESS);
         }
