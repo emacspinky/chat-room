@@ -1,13 +1,6 @@
 //
 //  server.cpp
-//  server
 //
-//  Created by Mike Fanger on 4/16/15.
-//  Copyright (c) 2015 Mike Fanger. All rights reserved.
-//
-
-
-// NEED TO HANDLE ARRAY and CLIENTCOUNT WHEN CLIENT LEAVES
 
 
 #include <stdio.h>
@@ -23,7 +16,7 @@
 #include <stdbool.h>
 
 #define SERVER_PORT 9999
-#define MAX_CLIENTS 10
+#define MAX_CLIENTS 3
 #define MAX_MESSAGE 512
 
 int clients[MAX_CLIENTS];
@@ -101,7 +94,7 @@ int main(int argc, const char * argv[]) {
         {
             pthread_mutex_unlock(&count_lock);
             
-            char buf[] = "Server is at maximum capacity, please try again later.";
+            char buf[] = "/server_full";
             write(clt_sock, buf, sizeof(buf));
             close(clt_sock);
             continue;
@@ -170,17 +163,7 @@ void* clientHandler(void* arg)
         bzero(buf, sizeof(buf));
     }
     
-    /* Inform users that a user is exiting */
-    char exit_message[MAX_MESSAGE]; bzero(exit_message, sizeof(exit_message));
-    strcpy(exit_message, client_name);
-    strcat(exit_message, " disconnected from the server");
-    printf("%s\n", exit_message);
-    emitMessage(exit_message, strlen(exit_message), clt_sock, clients);
-    
-    
-    /* Close client socket and update client state variables */
-    close(clt_sock);
-    
+    /* Update client state variables and close socket */
     pthread_mutex_lock(&array_lock);
     clients[idx] = -1;
     pthread_mutex_unlock(&array_lock);
@@ -188,6 +171,19 @@ void* clientHandler(void* arg)
     pthread_mutex_lock(&count_lock);
     client_count--;
     pthread_mutex_unlock(&count_lock);
+    
+    close(clt_sock);
+    
+    /* Inform users that a user is exiting */
+    char exit_message[MAX_MESSAGE]; bzero(exit_message, sizeof(exit_message));
+    strcpy(exit_message, client_name);
+    strcat(exit_message, " disconnected from the server");
+    printf("%s\n", exit_message);
+    
+    if(bytes_read > 0)
+    {
+        emitMessage(exit_message, strlen(exit_message), clt_sock, clients);
+    }
     
     return NULL;
 }
@@ -225,7 +221,11 @@ void emitMessage(char message[MAX_MESSAGE], size_t bytes, int sender_sock, int c
         if(clients[i] == -1) continue;
         if(clients[i] == sender_sock) continue;
         
-        write(clients[i], message, bytes);
+        int result = write(clients[i], message, bytes);
+        if(result == -1)
+        {
+            printf("Write error from emitMessage");
+        }
     }
     pthread_mutex_unlock(&array_lock);
 }
@@ -237,7 +237,11 @@ void emitMessageAll(char message[MAX_MESSAGE], size_t bytes, int clients[MAX_CLI
     {
         if(clients[i] == -1) continue;
         
-        write(clients[i], message, bytes);
+        int result = write(clients[i], message, bytes);
+        if(result == -1)
+        {
+            printf("Write error from emitMessageAll");
+        }
     }
     pthread_mutex_unlock(&array_lock);
 }
@@ -250,7 +254,6 @@ void closeSockets(int clients[MAX_CLIENTS])
     for(int i = 0; i < MAX_CLIENTS; i++)
     {
         if(clients[i] == -1) continue;
-        
         close(clients[i]);
     }
     pthread_mutex_unlock(&array_lock);
@@ -264,8 +267,8 @@ void closeServer()
 
 void* delayHandler(void* arg)
 {
-    char message[] = "Server will close in approximately 10 seconds. Please disconnect now.";
-    printf("\r%s\n", message);
+    printf("\rServer will shut down in approximately 10 seconds\n");
+    char message[] = "/server_closing";
     emitMessageAll(message, strlen(message), clients);
     sleep(10);
     closeSockets(clients);
