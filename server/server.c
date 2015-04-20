@@ -14,6 +14,7 @@
 #include <signal.h>
 #include <string.h>
 #include <stdbool.h>
+#include <arpa/inet.h>
 
 #define SERVER_PORT 9999
 #define MAX_CLIENTS 3
@@ -40,15 +41,19 @@ int main(int argc, const char * argv[]) {
     int srv_sock, clt_sock;
     
     struct sockaddr_in server_addr;
+    char* host = "127.0.0.1";
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_addr.s_addr = inet_addr(host);
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = SERVER_PORT;
+    server_addr.sin_port = htons(SERVER_PORT);
     
     struct sockaddr_in client_addr = { AF_INET };
     unsigned int client_len = sizeof(client_addr);
     
     
     /* Initialize clients array */
-    for(int i = 0; i < MAX_CLIENTS; i++)
+    int i;
+    for(i = 0; i < MAX_CLIENTS; i++)
     {
         clients[i] = -1;
     }
@@ -133,8 +138,9 @@ void* clientHandler(void* arg)
     printf("%s\n", buf);
     
     /* Inform all clients of the connected user */
+    int i;
     pthread_mutex_lock(&array_lock);
-    for(int i = 0; i < MAX_CLIENTS; i++)
+    for(i = 0; i < MAX_CLIENTS; i++)
     {
         if(clients[i] == -1) continue;
     
@@ -193,10 +199,10 @@ void* clientHandler(void* arg)
 // THREAD SAFE
 int findEmptySlot(int clients[MAX_CLIENTS])
 {
-    int idx = -1;
+    int idx = -1, i;
     bool done = false;
     
-    for(int i = 0; i < MAX_CLIENTS && !done; i++)
+    for(i = 0; i < MAX_CLIENTS && !done; i++)
     {
         pthread_mutex_lock(&array_lock);
         if(clients[i] == -1)
@@ -215,8 +221,9 @@ int findEmptySlot(int clients[MAX_CLIENTS])
 // THREAD SAFE
 void emitMessage(char message[MAX_MESSAGE], size_t bytes, int sender_sock, int clients[MAX_CLIENTS])
 {
+    int i;
     pthread_mutex_lock(&array_lock);
-    for(int i = 0; i < MAX_CLIENTS; i++)
+    for(i = 0; i < MAX_CLIENTS; i++)
     {
         if(clients[i] == -1) continue;
         if(clients[i] == sender_sock) continue;
@@ -232,8 +239,9 @@ void emitMessage(char message[MAX_MESSAGE], size_t bytes, int sender_sock, int c
 
 void emitMessageAll(char message[MAX_MESSAGE], size_t bytes, int clients[MAX_CLIENTS])
 {
+    int i;
     pthread_mutex_lock(&array_lock);
-    for(int i = 0; i < MAX_CLIENTS; i++)
+    for(i = 0; i < MAX_CLIENTS; i++)
     {
         if(clients[i] == -1) continue;
         
@@ -250,8 +258,9 @@ void emitMessageAll(char message[MAX_MESSAGE], size_t bytes, int clients[MAX_CLI
 // THREAD SAFE
 void closeSockets(int clients[MAX_CLIENTS])
 {
+    int i;
     pthread_mutex_lock(&array_lock);
-    for(int i = 0; i < MAX_CLIENTS; i++)
+    for(i = 0; i < MAX_CLIENTS; i++)
     {
         if(clients[i] == -1) continue;
         close(clients[i]);
