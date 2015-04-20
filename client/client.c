@@ -53,7 +53,7 @@ int main( int argc, char* argv[] )
 {
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = SERVER_PORT;
+    server_addr.sin_port = htons(SERVER_PORT);
     char buf[512];
     struct hostent *hostInfo;
     bool bServerAccepted = false;
