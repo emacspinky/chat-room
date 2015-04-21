@@ -1,5 +1,26 @@
+
+/************************************************************************/
+/*   PROGRAM NAME: server.c  (works with client.c)                      */
+/*                                                                      */
+/*   Server creates a socket to listen for the connection from up to 10 */
+/*   clients. When the communication is established, Server echoes data */
+/*   from Client to all other connected clients. Furthermore, Server    */
+/*   echoes a message to all clients whenver a new client connects or a */
+/*   current client disconnects.                                        */
+/*                                                                      */
+/*   To run this program, first compile the server.c and run it         */
+/*   on a server machine. Then run the client program on another        */
+/*   machine.                                                           */
+/*                                                                      */
+/*   LINUX:      gcc -o server  server.c -lpthread -lnsl                */
+/*                                                                      */
+/************************************************************************/
+
+
 //
 //  server.cpp
+//  CS 3800 Assignment 3
+//  Mike Fanger and Joel Bierbaum
 //
 
 
@@ -17,7 +38,7 @@
 #include <arpa/inet.h>
 
 #define SERVER_PORT 9999
-#define MAX_CLIENTS 3
+#define MAX_CLIENTS 10
 #define MAX_MESSAGE 512
 
 int clients[MAX_CLIENTS];
@@ -41,9 +62,7 @@ int main(int argc, const char * argv[]) {
     int srv_sock, clt_sock;
     
     struct sockaddr_in server_addr;
-    char* host = "127.0.0.1";
     memset(&server_addr, 0, sizeof(server_addr));
-    //server_addr.sin_addr.s_addr = inet_addr(host);
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(SERVER_PORT);
@@ -217,8 +236,7 @@ int findEmptySlot(int clients[MAX_CLIENTS])
     return idx;
 }
 
-// Sends message to all connect clients, except the client that the message
-// originated from.
+// Sends message to all connected clients, except the client connected to sender_sock.
 // THREAD SAFE
 void emitMessage(char message[MAX_MESSAGE], size_t bytes, int sender_sock, int clients[MAX_CLIENTS])
 {
@@ -238,6 +256,8 @@ void emitMessage(char message[MAX_MESSAGE], size_t bytes, int sender_sock, int c
     pthread_mutex_unlock(&array_lock);
 }
 
+// Sends message to all connected clients
+// THREAD SAFE
 void emitMessageAll(char message[MAX_MESSAGE], size_t bytes, int clients[MAX_CLIENTS])
 {
     int i;
@@ -269,12 +289,14 @@ void closeSockets(int clients[MAX_CLIENTS])
     pthread_mutex_unlock(&array_lock);
 }
 
+// Spawns a thread that will close the server application
 void closeServer()
 {
     pthread_t tid;
     pthread_create(&tid, NULL, delayHandler, NULL);
 }
 
+// Closes all socket connections and exits the server after a 10 second delay,
 void* delayHandler(void* arg)
 {
     printf("\rServer will shut down in approximately 10 seconds\n");

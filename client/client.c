@@ -18,6 +18,7 @@
 //
 //  client.c
 //  CS 3800 Assignment 3
+//  Mike Fanger and Joel Bierbaum
 //
 
 #include <stdio.h> 
