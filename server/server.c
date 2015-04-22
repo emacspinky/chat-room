@@ -47,7 +47,6 @@ unsigned int client_count = 0;
 bool done = false;
 pthread_mutex_t count_lock;
 pthread_mutex_t array_lock;
-pthread_mutex_t done_lock;
 
 void* clientHandler(void* arg);
 int findEmptySlot(int clients[MAX_CLIENTS]);
