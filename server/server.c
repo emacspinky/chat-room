@@ -41,11 +41,13 @@
 #define MAX_CLIENTS 10
 #define MAX_MESSAGE 512
 
-int srv_sock, clt_sock;
+int srv_sock;
 int clients[MAX_CLIENTS];
 unsigned int client_count = 0;
+bool done = false;
 pthread_mutex_t count_lock;
 pthread_mutex_t array_lock;
+pthread_mutex_t done_lock;
 
 void* clientHandler(void* arg);
 int findEmptySlot(int clients[MAX_CLIENTS]);
@@ -60,7 +62,8 @@ int main(int argc, const char * argv[]) {
     // Prevent stdout from buffering
     setbuf(stdout, NULL);
     
-    //int srv_sock, clt_sock;
+    // Stores socket descriptors for newly accepted clients
+    int clt_sock;
     
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
@@ -113,6 +116,7 @@ int main(int argc, const char * argv[]) {
         {
             perror("server: accept failed\n");
             exit(1);
+            break;
         }
         
         pthread_mutex_lock(&count_lock);
@@ -132,8 +136,6 @@ int main(int argc, const char * argv[]) {
         pthread_t tid;
         pthread_create(&tid, NULL, clientHandler, &clt_sock);
     }
-
-    printf("about to sexit from main");
     
     return 0;
 }
@@ -292,27 +294,18 @@ void closeSockets(int clients[MAX_CLIENTS])
     pthread_mutex_unlock(&array_lock);
 }
 
-// Spawns a thread that will close the server application
+// Handler for cleanly closing server
 void closeServer()
-{
-    pthread_t tid;
-    pthread_create(&tid, NULL, delayHandler, NULL);
-}
-
-// Closes all socket connections and exits the server after a 10 second delay,
-void* delayHandler(void* arg)
 {
     printf("\rServer will shut down in approximately 10 seconds\n");
     char message[] = "/server_closing";
     emitMessageAll(message, strlen(message), clients);
     sleep(10);
-
+    
     closeSockets(clients);
-    close(clt_sock);
     close(srv_sock);
-
+    
     exit(0);
-    return NULL;
 }
 
 
