@@ -38,9 +38,10 @@
 #include <arpa/inet.h>
 
 #define SERVER_PORT 9999
-#define MAX_CLIENTS 10
+#define MAX_CLIENTS 3
 #define MAX_MESSAGE 512
 
+int srv_sock, clt_sock;
 int clients[MAX_CLIENTS];
 unsigned int client_count = 0;
 pthread_mutex_t count_lock;
@@ -59,7 +60,7 @@ int main(int argc, const char * argv[]) {
     // Prevent stdout from buffering
     setbuf(stdout, NULL);
     
-    int srv_sock, clt_sock;
+    //int srv_sock, clt_sock;
     
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
@@ -131,6 +132,8 @@ int main(int argc, const char * argv[]) {
         pthread_t tid;
         pthread_create(&tid, NULL, clientHandler, &clt_sock);
     }
+
+    printf("about to sexit from main");
     
     return 0;
 }
@@ -303,8 +306,11 @@ void* delayHandler(void* arg)
     char message[] = "/server_closing";
     emitMessageAll(message, strlen(message), clients);
     sleep(10);
+
     closeSockets(clients);
-    
+    close(clt_sock);
+    close(srv_sock);
+
     exit(0);
     return NULL;
 }

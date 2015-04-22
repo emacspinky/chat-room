@@ -95,7 +95,8 @@ int main( int argc, char* argv[] )
     /* SEND CLIENT USERNAME TO THE SERVER */
     while( !bServerAccepted && gets(buf) != NULL ) // MUST HAVE IN THIS ORDER, ELSE IT HANGS ON gets()
     {
-        write(socketNumber, buf, sizeof(buf));
+        write(socketNumber, buf, sizeof(buf)); 
+        bzero(buf, sizeof(buf));
         read(socketNumber, buf, sizeof(buf));
         if(strcmp(buf,"/server_full")==0)
         {
@@ -149,6 +150,7 @@ void *readThread( void *sockNum )
 {
     int *socket = (int*)sockNum;
     char receivedMessage[BUFFER_LENGTH]; // message received from server
+    bzero(receivedMessage, sizeof(receivedMessage));
 
     /* READ MESSAGES FROM THE SERVER */
     while(read(*socket, receivedMessage, sizeof(receivedMessage)) > 0)
