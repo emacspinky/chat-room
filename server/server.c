@@ -38,7 +38,7 @@
 #include <arpa/inet.h>
 
 #define SERVER_PORT 9999
-#define MAX_CLIENTS 3
+#define MAX_CLIENTS 10
 #define MAX_MESSAGE 512
 
 int srv_sock, clt_sock;
